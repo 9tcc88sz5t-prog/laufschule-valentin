@@ -284,7 +284,11 @@ async function startApp() {
 
 }
 
-$("save").onclick = async () => {
+$("save").onclick = async () => {  if (isTrainer && !selectedAthlete) {
+    $("saveMessage").textContent =
+      "Bitte zuerst im Trainerbereich einen Athleten über „Trainings ansehen“ auswählen.";
+    return;
+  }
 
   const date = $("date").value;
 
@@ -440,7 +444,7 @@ $("loadAthletes").onclick = async () => {
 
     button.onclick = async () => {
 
-      selectedAthlete = athlete.id;
+      selectedAthlete = isTrainer ? null : currentUser.id;
 
       await loadEntries();
 
