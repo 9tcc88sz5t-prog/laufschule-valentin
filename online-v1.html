@@ -1,5 +1,6 @@
 
 
+
 <!DOCTYPE html>
 
 <html lang="de">
@@ -12,34 +13,398 @@
 
 <title>Laufschule Valentin</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
-
-*{box-sizing:border-box}
 
 body{font-family:Arial,sans-serif;margin:0;background:#f1f4f7;color:#202a35}
 
-header{background:#173d30;color:#fff;padding:20px}
+header{background:#173d30;color:white;padding:20px}
 
-main{max-width:1000px;margin:auto;padding:14px}
+header h1{margin:0;font-size:24px}
 
-section{background:#fff;padding:16px;border-radius:12px;margin:12px 0}
+main{padding:14px;max-width:850px;margin:auto}
 
-input,select,button{font:inherit;padding:11px;margin:5px 0;width:100%;border-radius:6px;border:1px solid #bbb}
+section{background:white;padding:15px;border-radius:12px;margin:12px 0}
 
-button{background:#205b43;color:#fff;border:0;cursor:pointer}
+input,select,textarea,button{font:inherit;padding:10px;margin:5px 0;box-sizing:border-box;max-width:100%;border-radius:6px;border:1px solid #bbb}
 
-button:disabled{opacity:.5}
+input,select,textarea{width:100%}
 
-.hidden{display:none}
-
-.item{padding:10px;border:1px solid #ddd;border-radius:8px;margin:8px 0;overflow-wrap:anywhere}
-
-.status{white-space:pre-wrap;overflow-wrap:anywhere}
+button{background:#205b43;color:white;border:0;padding:11px 14px}
 
 .small{font-size:13px;color:#566}
 
-.year-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.months{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 
-.month-card{padding:8px;border:1px s
+.month{padding:8px 3px;border-radius:6px;text-align:center;font-size:12px;color:#172}
+
+.base{background:#b9dfc1}.build{background:#f8d88c}.peak{background:#f3a7a7}.rest{background:#d8dce2}
+
+.athlete{border:1px solid #ddd;padding:10px;border-radius:8px;margin:8px 0}
+
+label{font-size:14px;font-weight:bold;display:block;margin-top:8px}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+
+<h1>Laufschule Valentin</h1>
+
+<p>Trainingsplanung · Lauftechnik · Laufökonomie</p>
+
+</header>
+
+<main>
+
+<section>
+
+<h2>Athlet hinzufügen</h2>
+
+<label>Name</label><input id="name" placeholder="Vorname Nachname">
+
+<label>Jahresziel</label><input id="goal" placeholder="z. B. Halbmarathon">
+
+<button onclick="addAthlete()">Athlet speichern</button>
+
+</section>
+
+<section>
+
+<h2>Meine Athleten</h2>
+
+<div id="athletes"></div>
+
+</section>
+
+<section>
+
+<h2>Trainingswoche planen</h2>
+
+<label>Athlet</label><select id="who"></select>
+
+<label>Woche ab</label><input id="week" type="date">
+
+<label>Trainingseinheit und Trainingsort</label>
+
+<textarea id="training" rows="3" placeholder="Mo: Dauerlauf – Luftschiffhafen&#10;Mi: Lauf-ABC und Technik&#10;Sa: Tempodauerlauf"></textarea>
+
+<button onclick="saveWeek()">Wochenplan speichern</button>
+
+<div id="weeks"></div>
+
+</section>
+
+<section>
+
+<h2>Jahresplanung</h2>
+
+<p>Monatsfelder antippen, um die Trainingsperiode zu wählen.</p>
+
+<label>Athlet</label><select id="periodWho" onchange="showYear()"></select>
+
+<div class="months" id="months"></div>
+
+</section>
+
+<section>
+
+<h2>Trainingsprotokoll</h2>
+
+<label>Athlet</label><select id="logWho"></select>
+
+<label>Datum</label><input id="logDate" type="date">
+
+<label>Durchgeführtes Training</label><textarea id="logText" rows="2" placeholder="Dauer, Strecke, Belastung, Befinden"></textarea>
+
+<button onclick="saveLog()">Training dokumentieren</button>
+
+<div id="logs"></div>
+
+</section>
+
+<section>
+
+<h2>Sicherung</h2>
+
+<button onclick="exportData()">Daten exportieren</button>
+
+<label>Gesicherte JSON-Datei importieren</label>
+
+<input type="file" id="importFile" accept=".json,application/json">
+
+<button onclick="importData()">Daten importieren</button>
+
+<p>Die Daten werden in diesem Browser auf deinem Gerät gespeichert. Exportiere regelmäßig eine Sicherung.</p>
+
+</section>
+
+</main>
+
+<script>
+
+const key='laufschuleValentinData';
+
+let db=JSON.parse(localStorage.getItem(key)||'{"athletes":[],"weeks":[],"logs":[],"periods":{}}');
+
+function save(){localStorage.setItem(key,JSON.stringify(db));render();}
+
+function addAthlete(){
+
+ const name=document.getElementById('name').value.trim();
+
+ if(!name){alert('Bitte Namen eingeben.');return;}
+
+ db.athletes.push({id:Date.now(),name,goal:document.getElementById('goal').value,periods:{}});
+
+ document.getElementById('name').value='';document.getElementById('goal').value='';save();
+
+}
+
+function render(){
+
+ const list=document.getElementById('athletes');
+
+ list.innerHTML=db.athletes.map(a=>`<div class="athlete"><b>${esc(a.name)}</b><br>${esc(a.goal||'Kein Jahresziel eingetragen')}<br><button onclick="removeAthlete(${a.id})">Athlet löschen</button></div>`).join('')||'Noch keine Athleten angelegt.';
+
+ ['who','periodWho','logWho'].forEach(id=>{
+
+ const el=document.getElementById(id),old=el.value;
+
+ el.innerHTML=db.athletes.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join('');
+
+ if(db.athletes.some(a=>String(a.id)===old))el.value=old;
+
+ });
+
+ showYear();showWeeks();showLogs();
+
+}
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+function removeAthlete(id){if(confirm('Athlet und zugehörige Einträge löschen?')){db.athletes=db.athletes.filter(a=>a.id!==id);db.weeks=db.weeks.filter(w=>w.id!==id);db.logs=db.logs.filter(l=>l.id!==id);delete db.periods[id];save();}}
+
+const months=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+const types=[['Grundlage','base'],['Aufbau','build'],['Wettkampf','peak'],['Regeneration','rest']];
+
+function showYear(){
+
+ const id=document.getElementById('periodWho').value,a=db.athletes.find(x=>String(x.id)===id);
+
+ document.getElementById('months').innerHTML=a?months.map((m,i)=>{let p=a.periods[i]||'base';return `<div class="month ${p}" onclick="cycle(${a.id},${i})">${m}<br>${types.find(t=>t[1]===p)[0]}</div>`}).join(''):'Bitte zuerst einen Athleten anlegen.';
+
+}
+
+function cycle(id,i){let a=db.athletes.find(x=>x.id===id);if(!a)return;let p=a.periods[i]||'base';a.periods[i]=types[(types.findIndex(t=>t[1]===p)+1)%types.length][1];save();}
+
+function saveWeek(){let id=Number(document.getElementById('who').value),date=document.getElementById('week').value,text=document.getElementById('training').value.trim();if(!id||!date||!text){alert('Bitte Athlet, Datum und Trainingsplan eingeben.');return;}db.weeks.push({id,date,text});document.getElementById('training').value='';save();}
+
+function showWeeks(){document.getElementById('weeks').innerHTML=db.weeks.slice().reverse().map(w=>`<div class="athlete"><b>${esc(db.athletes.find(a=>a.id===w.id)?.name||'Athlet')} – Woche ab ${esc(w.date)}</b><p>${esc(w.text).replace(/\n/g,'<br>')}</p></div>`).join('');}
+
+function saveLog(){let id=Number(document.getElementById('logWho').value),date=document.getElementById('logDate').value,text=document.getElementById('logText').value.trim();if(!id||!date||!text){alert('Bitte alle Felder ausfüllen.');return;}db.logs.push({id,date,text});document.getElementById('logText').value='';save();}
+
+function showLogs(){document.getElementById('logs').innerHTML=db.logs.slice().reverse().map(l=>`<div class="athlete"><b>${esc(db.athletes.find(a=>a.id===l.id)?.name||'Athlet')} – ${esc(l.date)}</b><p>${esc(l.text)}</p></div>`).join('');}
+
+function exportData(){const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='laufschule-valentin-sicherung.json';a.click();URL.revokeObjectURL(url);}
+
+function importData(){const f=document.getElementById('importFile').files[0];if(!f){alert('Bitte zuerst eine JSON-Datei auswählen.');return;}const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.athletes)||!Array.isArray(d.weeks)||!Array.isArray(d.logs))throw Error();if(!confirm('Vorhandene Daten durch die Sicherung ersetzen?'))return;db=d;save();alert('Import erfolgreich.');}catch(e){alert('Datei ungültig oder nicht passend.');}};r.readAsText(f);}
+
+render();
+
+</script>
+
+</body>
+
+</html>
+
+Neue App
+
+
+  "version": 1,
+  "athletes": [
+    {
+      "id": "wochenplan-2026-10-19",
+      "name": "Wochenplan 19.–25.10.2026",
+      "birth": "",
+      "goal": "Wochenplan",
+      "time": "",
+      "weekly": 110.6,
+      "periods": {},
+      "entries": [
+        {
+          "id": "plan-19-1",
+          "date": "2026-10-19",
+          "type": "TL1",
+          "km": 0,
+          "plannedKm": 10.3,
+          "warmupKm": 3,
+          "fastKm": 4,
+          "cooldownKm": 3,
+          "status": "planned",
+          "duration": "",
+          "notes": "1. TE: 3 km E/L; 15' Gymnastik; 10' Lauf-ABC; 3×100 m Steigerungsläufe; 20×200 m TL1 in 33 s (D), jeweils 150 m Trabpause; 3 km E/L. Lauf-km inkl. 0,3 km Steigerungen."
+        },
+        {
+          "id": "plan-19-2",
+          "date": "2026-10-19",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 8,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: 8 km DL1; 30' Blackroll."
+        },
+        {
+          "id": "plan-20-1",
+          "date": "2026-10-20",
+          "type": "DL2",
+          "km": 0,
+          "plannedKm": 15,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": 55,
+          "notes": "1. TE: 15 km DL2 in 55'; 30' Gymnastik."
+        },
+        {
+          "id": "plan-20-2",
+          "date": "2026-10-20",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 3,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: 3 km E/L; 60' Kräftigung A, A."
+        },
+        {
+          "id": "plan-21-1",
+          "date": "2026-10-21",
+          "type": "DL2",
+          "km": 0,
+          "plannedKm": 10,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": 36,
+          "notes": "1. TE: 10 km DL2 in 35–36'; 45' Blackroll."
+        },
+        {
+          "id": "plan-21-2",
+          "date": "2026-10-21",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 8,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: 8 km DL1; 30' Blackroll."
+        },
+        {
+          "id": "plan-22-1",
+          "date": "2026-10-22",
+          "type": "TL2",
+          "km": 0,
+          "plannedKm": 16.3,
+          "warmupKm": 3,
+          "fastKm": 10,
+          "cooldownKm": 3,
+          "status": "planned",
+          "duration": "",
+          "notes": "1. TE: 3 km E/L; 15' Gymnastik; 10' Lauf-ABC; 3×100 m Steigerungsläufe; 10×1000 m TL2 in 3:00–3:05 (D), 2' Trabpause; 3 km E/L. Lauf-km inkl. 0,3 km Steigerungen."
+        },
+        {
+          "id": "plan-22-2",
+          "date": "2026-10-22",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 8,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: 8 km DL1; 30' Blackroll."
+        },
+        {
+          "id": "plan-23-1",
+          "date": "2026-10-23",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 15,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": 60,
+          "notes": "1. TE: 15 km DL1 in 60'; 15' Mobilität."
+        },
+        {
+          "id": "plan-23-2",
+          "date": "2026-10-23",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 0,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: 45' Blackroll; kein Laufkilometer."
+        },
+        {
+          "id": "plan-24-1",
+          "date": "2026-10-24",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 25,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "1. TE: 25 km DL1, maximal 4:00 min/km; 15' Mobilität."
+        },
+        {
+          "id": "plan-24-2",
+          "date": "2026-10-24",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 0,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "2. TE: Frei."
+        },
+        {
+          "id": "plan-25-1",
+          "date": "2026-10-25",
+          "type": "DL1",
+          "km": 0,
+          "plannedKm": 0,
+          "warmupKm": 0,
+          "fastKm": 0,
+          "cooldownKm": 0,
+          "status": "planned",
+          "duration": "",
+          "notes": "Frei – kein Training."
+        }
+      ]
+    }
+  ],
+  "activeId": "wochenplan-2026-10-19"
